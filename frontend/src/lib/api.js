@@ -1,6 +1,11 @@
 import { getCSRFToken } from "./django"
 
-const BASE_URL = import.meta.env.VITE_API_URL || "/api"
+// Default to a same-origin relative base. In a production build, ignore a
+// VITE_API_URL that points at localhost — that's a leftover dev value and would
+// make the deployed app try to reach a backend on the user's machine.
+const RAW_API_URL = import.meta.env.VITE_API_URL
+const IS_LOCAL_URL = RAW_API_URL && /\/\/(127\.0\.0\.1|localhost)/.test(RAW_API_URL)
+const BASE_URL = RAW_API_URL && !(import.meta.env.PROD && IS_LOCAL_URL) ? RAW_API_URL : "/api"
 
 function extractErrorMessage(data) {
   if (!data || typeof data !== "object") return String(data)
