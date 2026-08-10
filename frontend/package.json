@@ -8,6 +8,7 @@
     "prebuild": "npm run generate-icons",
     "dev": "vite",
     "build": "vite build",
+    "vercel-build": "npm run generate-icons && vite build --outDir dist --emptyOutDir",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",

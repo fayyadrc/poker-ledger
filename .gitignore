@@ -67,6 +67,7 @@ backend/static/frontend/
 node_modules/
 frontend/build/
 frontend/dev-dist/
+frontend/dist/
 
 # Flask stuff:
 instance/
