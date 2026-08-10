@@ -12,6 +12,12 @@ DEBUG = os.getenv("DEBUG", "False") == "True"
 
 ALLOWED_HOSTS = [h.strip() for h in os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",") if h.strip()]
 
+# Vercel sets VERCEL=1 in its build and runtime environments.
+IS_SERVERLESS = bool(os.getenv("VERCEL"))
+if IS_SERVERLESS:
+    # Vercel production + preview deployments are served from dynamic *.vercel.app hosts.
+    ALLOWED_HOSTS = list(dict.fromkeys([*ALLOWED_HOSTS, ".vercel.app"]))
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -87,8 +93,23 @@ import dj_database_url
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+# On serverless (Vercel) each invocation is short-lived and may land on a fresh
+# backend, so persistent connections don't help and risk exhausting Postgres.
+# A long-lived gunicorn keeps them warm instead.
+#
+# IMPORTANT (RLS): SetRLSUserMiddleware relies on set_config(..., is_local=FALSE),
+# a *session*-scoped variable. That requires a session-mode connection. When using
+# Supabase, connect through the **Session pooler** or the direct connection —
+# never the Transaction pooler (:6543), which would break RLS silently.
+DB_CONN_MAX_AGE = int(os.getenv("DB_CONN_MAX_AGE", "0" if IS_SERVERLESS else "600"))
+
 if DATABASE_URL:
-    DATABASES = {"default": dj_database_url.config(default=DATABASE_URL, conn_max_age=600)}
+    DATABASES = {"default": dj_database_url.config(default=DATABASE_URL, conn_max_age=DB_CONN_MAX_AGE)}
+    # Managed Postgres (Supabase) requires TLS outside local dev.
+    if not DEBUG:
+        DATABASES["default"].setdefault("OPTIONS", {}).setdefault(
+            "sslmode", os.getenv("DB_SSLMODE", "require")
+        )
 else:
     DATABASES = {
         "default": {
@@ -161,3 +182,20 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ],
 }
+
+# ── Production hardening ───────────────────────────────────────────────────────
+# Applied only outside local dev. The SPA and API share one origin on Vercel, so
+# SameSite=Lax cookies work without the third-party-cookie problems of a split
+# deployment.
+if not DEBUG:
+    # Vercel terminates TLS and forwards the original scheme in this header.
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    CSRF_COOKIE_SAMESITE = "Lax"
+
+if IS_SERVERLESS:
+    # Trust CSRF/Origin checks from Vercel's dynamic deployment hosts. Set
+    # FRONTEND_URL (and CORS_ALLOWED_ORIGINS) to your canonical URL as well.
+    CSRF_TRUSTED_ORIGINS = list(dict.fromkeys([*CSRF_TRUSTED_ORIGINS, "https://*.vercel.app"]))

@@ -39,20 +39,25 @@ while lsof -Pi ":$BACKEND_PORT" -sTCP:LISTEN -t >/dev/null 2>&1; do
 done
 export BACKEND_PORT
 
+# Keep Vite's proxy in sync (vite.config.js reads BACKEND_PORT; .env.development.local
+# covers a frontend started outside this script).
+printf 'BACKEND_PORT=%s\n' "$BACKEND_PORT" > frontend/.env.development.local
+
 echo "==> Starting backend (http://127.0.0.1:$BACKEND_PORT)"
 (cd backend && python manage.py runserver "127.0.0.1:$BACKEND_PORT") &
 BACKEND_PID=$!
 
 sleep 2
 
-echo "==> Starting frontend (http://127.0.0.1:5173)"
-(cd frontend && npm run dev -- --host --port 5173) &
+echo "==> Starting frontend (http://127.0.0.1:5173 → API :$BACKEND_PORT)"
+(cd frontend && BACKEND_PORT="$BACKEND_PORT" npm run dev -- --host --port 5173) &
 FRONTEND_PID=$!
 
 echo ""
 echo "Poker Ledger is running:"
 echo "  App:  http://127.0.0.1:5173"
 echo "  API:  http://127.0.0.1:$BACKEND_PORT/api/"
+echo "  Vite proxies /api and /_allauth → :$BACKEND_PORT"
 echo ""
 echo "Press Ctrl+C to stop both servers."
 

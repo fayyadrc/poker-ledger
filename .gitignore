@@ -141,6 +141,13 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
+# Database dumps & data exports — contain real user data and password hashes.
+# NEVER commit these (they would leak into the repo and the Vercel build).
+poker_ledger_db/
+exports/
+*.dump
+*.dat
+
 # Environments
 .env
 .envrc
@@ -212,3 +219,4 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+.DS_Store
