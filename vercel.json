@@ -9,10 +9,6 @@
     }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index" },
-    { "source": "/_allauth/(.*)", "destination": "/api/index" },
-    { "source": "/admin/(.*)", "destination": "/api/index" },
-    { "source": "/static/(.*)", "destination": "/api/index" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/(.*)", "destination": "/api/index" }
   ]
 }
