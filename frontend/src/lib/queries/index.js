@@ -18,6 +18,8 @@ export {
   useTableRequests,
   useCreateRequest,
   useResolveRequest,
+  useCreateTransfer,
+  useDeleteTransfer,
 } from "@/lib/queries/tables"
 export {
   useSession,

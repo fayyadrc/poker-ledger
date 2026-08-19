@@ -1,8 +1,10 @@
+import { Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { formatMoney } from "@/lib/currency"
 
-export default function TransfersList({ transfers, currency, as: Wrapper = Card }) {
+export default function TransfersList({ transfers, currency, as: Wrapper = Card, onDelete }) {
   if (!transfers?.length) return null
 
   const Content = Wrapper === Card ? CardContent : "div"
@@ -24,12 +26,30 @@ export default function TransfersList({ transfers, currency, as: Wrapper = Card 
               key={transfer.id}
               className="flex items-center justify-between gap-4 p-5 text-base"
             >
-              <p>
-                <span className="font-medium">{transfer.from_player}</span>
-                <span className="text-muted-foreground"> paid </span>
-                <span className="font-medium">{transfer.to_player}</span>
-              </p>
-              <Badge variant="secondary">{formatMoney(transfer.amount, currency)}</Badge>
+              <div className="min-w-0">
+                <p>
+                  <span className="font-medium">{transfer.from_player}</span>
+                  <span className="text-muted-foreground"> paid </span>
+                  <span className="font-medium">{transfer.to_player}</span>
+                </p>
+                {transfer.note && (
+                  <p className="truncate text-sm text-muted-foreground">{transfer.note}</p>
+                )}
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <Badge variant="secondary">{formatMoney(transfer.amount, currency)}</Badge>
+                {onDelete && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 text-muted-foreground hover:text-destructive"
+                    aria-label="Delete cash transfer"
+                    onClick={() => onDelete(transfer)}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                )}
+              </div>
             </div>
           ))}
         </Content>

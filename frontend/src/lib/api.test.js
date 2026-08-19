@@ -1,7 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
-import { tablesApi } from "./api.js"
+
+// The API layer authenticates with the Supabase access token as a Bearer JWT.
+// Stub it so tests don't need a real Supabase session (and never load the
+// supabase client).
+vi.mock("./auth.js", () => ({
+  getAccessToken: vi.fn(async () => "test-token"),
+}))
+
+const { tablesApi } = await import("./api.js")
+
+const authHeaders = {
+  "Content-Type": "application/json",
+  Authorization: "Bearer test-token",
+}
 
 describe("api request helper", () => {
   beforeEach(() => {
@@ -12,7 +25,7 @@ describe("api request helper", () => {
     vi.unstubAllGlobals()
   })
 
-  it("lists tables from /api/tables/ with credentials", async () => {
+  it("lists tables from /api/tables/ with a bearer token", async () => {
     fetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -22,15 +35,12 @@ describe("api request helper", () => {
     const data = await tablesApi.list()
 
     expect(fetch).toHaveBeenCalledWith("/api/tables/", {
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders,
     })
     expect(data).toEqual([{ id: 1, name: "Friday Night" }])
   })
 
-  it("sends CSRF header on mutating requests", async () => {
-    vi.stubGlobal("document", { cookie: "csrftoken=test-csrf" })
-
+  it("sends the bearer token on mutating requests", async () => {
     fetch.mockResolvedValueOnce({
       ok: true,
       status: 201,
@@ -41,11 +51,7 @@ describe("api request helper", () => {
 
     expect(fetch).toHaveBeenCalledWith("/api/tables/", {
       method: "POST",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRFToken": "test-csrf",
-      },
+      headers: authHeaders,
       body: JSON.stringify({
         name: "Sunday Game",
         member_names: ["Alice"],
@@ -64,7 +70,6 @@ describe("api request helper", () => {
   })
 
   it("updates table settings used by the settings page", async () => {
-    vi.stubGlobal("document", { cookie: "csrftoken=test-csrf" })
     fetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -75,11 +80,7 @@ describe("api request helper", () => {
 
     expect(fetch).toHaveBeenCalledWith("/api/tables/7/", {
       method: "PUT",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRFToken": "test-csrf",
-      },
+      headers: authHeaders,
       body: JSON.stringify({
         name: "Saturday Night",
         member_names: ["Alice", "Bob"],
@@ -89,8 +90,6 @@ describe("api request helper", () => {
   })
 
   it("manages share links and memberships for table settings", async () => {
-    vi.stubGlobal("document", { cookie: "csrftoken=test-csrf" })
-
     fetch
       .mockResolvedValueOnce({
         ok: true,
@@ -137,7 +136,7 @@ describe("api request helper", () => {
 })
 
 describe("built service worker", () => {
-  it("denylists /api and /_allauth so SPA fallback never caches API traffic", () => {
+  it("denylists /api so SPA fallback never caches API traffic", () => {
     const swPath = resolve(
       process.cwd(),
       "../backend/static/frontend/sw.js"
@@ -145,7 +144,6 @@ describe("built service worker", () => {
     const swSource = readFileSync(swPath, "utf8")
 
     expect(swSource).toMatch(/denylist:\[[^\]]*\/api/)
-    expect(swSource).toMatch(/denylist:\[[^\]]*\/_allauth/)
     expect(swSource).not.toMatch(/poker-ledger-api/)
     expect(swSource).not.toMatch(/runtimeCaching/)
   })

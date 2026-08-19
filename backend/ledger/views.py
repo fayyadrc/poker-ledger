@@ -9,12 +9,14 @@ from rest_framework.response import Response
 
 from . import cache_utils as cache
 from .audit import log_session_audit
-from .models import ChangeRequest, Table, TableMembership, Session, SessionPlayer
+from .models import ChangeRequest, Table, TableMembership, TableTransfer, Session, SessionPlayer
 from .serializers import (
     ChangeRequestSerializer,
     ResolveRequestSerializer,
     TableMembershipSerializer,
     TableSerializer,
+    TableTransferSerializer,
+    CreateTableTransferSerializer,
     SessionSerializer,
     SessionDetailSerializer,
     SessionPlayerSerializer,
@@ -156,6 +158,28 @@ class TableViewSet(viewsets.ModelViewSet):
 
         table.share_token = None
         table.save(update_fields=["share_token"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["post"], url_path="transfers")
+    def transfers(self, request, pk=None):
+        table = self.get_object()
+        self._require_owner(table)
+        serializer = CreateTableTransferSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        transfer = TableTransfer.objects.create(table=table, **serializer.validated_data)
+        cache.invalidate_table(_viewer_ids(table), table.id)
+        return Response(TableTransferSerializer(transfer).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["delete"], url_path=r"transfers/(?P<transfer_id>\d+)")
+    def remove_transfer(self, request, pk=None, transfer_id=None):
+        table = self.get_object()
+        self._require_owner(table)
+        try:
+            transfer = table.transfers.get(pk=transfer_id)
+        except TableTransfer.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        transfer.delete()
+        cache.invalidate_table(_viewer_ids(table), table.id)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=["get"], url_path="memberships")

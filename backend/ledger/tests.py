@@ -28,7 +28,10 @@ def auth_client(username="alice", email=None):
         email=email or f"{username}@test.com",
         password="test-pass-123",
     )
-    client.force_login(user)
+    # The API now authenticates via Supabase JWT (SupabaseJWTAuthentication),
+    # not Django sessions. force_authenticate sets request.user directly,
+    # bypassing the auth class so tests don't need to mint real Supabase tokens.
+    client.force_authenticate(user=user)
     return client, user
 
 
@@ -50,7 +53,8 @@ class TableAPITests(TestCase):
 
     def test_list_tables_requires_auth(self):
         response = APIClient().get("/api/tables/")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # Bearer-token auth answers missing credentials with 401 (not 403).
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_list_tables_returns_only_owned_tables(self):
         Table.objects.create(name="Alice Table", default_buy_in="10.00", owner=self.user)
@@ -604,7 +608,7 @@ class IngestAPITests(TestCase):
     def test_ingest_requires_auth(self):
         payload = {"tables": [{"name": "X", "default_buy_in": "10", "currency": "GBP", "sessions": []}]}
         response = APIClient().post("/api/me/ingest/", payload, format="json")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 @override_settings(
@@ -727,7 +731,7 @@ class FrontendAssetTests(TestCase):
 
     def test_api_tables_requires_auth(self):
         response = self.client.get("/api/tables/")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 @override_settings(
@@ -878,7 +882,7 @@ class MembershipTests(TestCase):
 
     def test_anonymous_cannot_join(self):
         response = APIClient().post(f"/api/shared/{self.token}/join/")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_member_sees_table_in_list_with_viewer_role(self):
         self._join()
@@ -1064,7 +1068,7 @@ class ChangeRequestTests(TestCase):
             {"message": "hi"},
             format="json",
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_owner_lists_all_requests_member_lists_own(self):
         self._raise_request()
@@ -1120,3 +1124,76 @@ class ChangeRequestTests(TestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+@override_settings(
+    ALLOWED_HOSTS=["testserver", "127.0.0.1", "localhost"],
+    DEBUG=True,
+    CACHES={
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "ledger-tests",
+        }
+    },
+)
+class TableTransferTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.owner_client, self.owner = auth_client("xfer_owner")
+        self.member_client, self.member = auth_client("xfer_member")
+        self.outsider_client, self.outsider = auth_client("xfer_outsider")
+        self.table = Table.objects.create(name="Cash Table", default_buy_in="10.00", owner=self.owner)
+        token = self.owner_client.post(f"/api/tables/{self.table.id}/share-link/").json()["share_token"]
+        self.member_client.post(f"/api/shared/{token}/join/")
+
+    def _create_transfer(self, client=None, **overrides):
+        data = {"from_player": "Alice", "to_player": "Bob", "amount": "25.00", "note": "IOU settled"}
+        data.update(overrides)
+        return (client or self.owner_client).post(
+            f"/api/tables/{self.table.id}/transfers/", data, format="json"
+        )
+
+    def test_owner_can_record_transfer(self):
+        response = self._create_transfer()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        payload = response.json()
+        self.assertEqual(payload["from_player"], "Alice")
+        self.assertEqual(payload["to_player"], "Bob")
+        self.assertEqual(payload["amount"], "25.00")
+        self.assertEqual(payload["note"], "IOU settled")
+        self.assertEqual(TableTransfer.objects.filter(table=self.table).count(), 1)
+
+    def test_transfer_is_visible_to_members(self):
+        self._create_transfer()
+        response = self.member_client.get(f"/api/tables/{self.table.id}/")
+        transfers = response.json()["transfers"]
+        self.assertEqual(len(transfers), 1)
+        self.assertEqual(transfers[0]["from_player"], "Alice")
+
+    def test_member_cannot_record_transfer(self):
+        response = self._create_transfer(client=self.member_client)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_outsider_cannot_record_transfer(self):
+        response = self._create_transfer(client=self.outsider_client)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_rejects_non_positive_amount(self):
+        response = self._create_transfer(amount="0")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_rejects_same_from_and_to_player(self):
+        response = self._create_transfer(to_player="Alice")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_owner_can_delete_transfer(self):
+        transfer_id = self._create_transfer().json()["id"]
+        response = self.owner_client.delete(f"/api/tables/{self.table.id}/transfers/{transfer_id}/")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(TableTransfer.objects.filter(id=transfer_id).exists())
+
+    def test_member_cannot_delete_transfer(self):
+        transfer_id = self._create_transfer().json()["id"]
+        response = self.member_client.delete(f"/api/tables/{self.table.id}/transfers/{transfer_id}/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(TableTransfer.objects.filter(id=transfer_id).exists())

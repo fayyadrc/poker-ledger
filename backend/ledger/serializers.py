@@ -49,6 +49,22 @@ class TableTransferSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class CreateTableTransferSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TableTransfer
+        fields = ("from_player", "to_player", "amount", "note")
+
+    def validate_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Amount must be greater than zero.")
+        return value
+
+    def validate(self, attrs):
+        if attrs.get("from_player") == attrs.get("to_player"):
+            raise serializers.ValidationError("from_player and to_player must be different.")
+        return attrs
+
+
 class TableSerializer(serializers.ModelSerializer):
     members = TableMemberSerializer(many=True, read_only=True)
     transfers = TableTransferSerializer(many=True, read_only=True)

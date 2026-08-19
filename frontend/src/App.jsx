@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom"
 import MobileShell from "./components/layout/MobileShell"
-import AllauthAuthGate from "./components/auth/AllauthAuthGate"
+import AuthGate from "./components/auth/AuthGate"
 import Dashboard from "./pages/Dashboard"
 import TablePage from "./pages/TablePage"
 import TableSettingsPage from "./pages/TableSettingsPage"
@@ -10,6 +10,7 @@ import LearnPage from "./pages/LearnPage"
 import CalculatorPage from "./pages/CalculatorPage"
 import SettingsPage from "./pages/SettingsPage"
 import LoginPage from "./pages/LoginPage"
+import ResetPasswordPage from "./pages/ResetPasswordPage"
 import LandingPage from "./pages/LandingPage"
 import SharedTablePage from "./pages/SharedTablePage"
 
@@ -19,8 +20,9 @@ function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/shared/:token" element={<SharedTablePage />} />
-        <Route element={<AllauthAuthGate />}>
+        <Route element={<AuthGate />}>
           <Route element={<MobileShell />}>
             <Route path="/tables" element={<Dashboard />} />
             <Route path="/table/:id/settings" element={<TableSettingsPage />} />

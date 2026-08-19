@@ -11,6 +11,10 @@ const backendPort = process.env.BACKEND_PORT || '8000'
 const backendOrigin = `http://127.0.0.1:${backendPort}`
 
 export default defineConfig({
+  // Read .env / .env.example from the repo root — one shared env file for
+  // both the Django backend and this frontend, instead of a separate copy
+  // living under frontend/.
+  envDir: path.resolve(__dirname, '..'),
   plugins: [
     tailwindcss(),
     react(),
@@ -49,7 +53,7 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api/, /^\/_allauth/],
+        navigateFallbackDenylist: [/^\/api/],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,webmanifest}'],
         globIgnores: ['**/landing-*.png'],
       },
@@ -73,14 +77,10 @@ export default defineConfig({
         target: backendOrigin,
         changeOrigin: true,
       },
-      '/_allauth': {
-        target: backendOrigin,
-        changeOrigin: true,
-      },
     },
   },
 })
 
 if (process.env.NODE_ENV !== 'production') {
-  console.log(`[vite] proxying /api and /_allauth → ${backendOrigin}`)
+  console.log(`[vite] proxying /api → ${backendOrigin}`)
 }

@@ -7,7 +7,7 @@ import AuroraBackdrop from "@/components/reactbits/AuroraBackdrop"
 import BlurText from "@/components/reactbits/BlurText"
 import ShinyText from "@/components/reactbits/ShinyText"
 import SpotlightCard from "@/components/reactbits/SpotlightCard"
-import { getSession, isAuthenticatedSession } from "@/lib/allauth"
+import { getCurrentUser } from "@/lib/auth"
 
 const HEADLINE = "Settle the table without the spreadsheet"
 
@@ -169,9 +169,9 @@ export default function LandingPage() {
   useEffect(() => {
     let cancelled = false
 
-    getSession()
-      .then((session) => {
-        if (!cancelled) setAuthed(isAuthenticatedSession(session))
+    getCurrentUser()
+      .then((user) => {
+        if (!cancelled) setAuthed(!!user)
       })
       .catch(() => {
         if (!cancelled) setAuthed(false)

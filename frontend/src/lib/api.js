@@ -1,4 +1,4 @@
-import { getCSRFToken } from "./django"
+import { getAccessToken } from "./auth"
 
 // Default to a same-origin relative base. In a production build, ignore a
 // VITE_API_URL that points at localhost — that's a leftover dev value and would
@@ -20,20 +20,19 @@ function extractErrorMessage(data) {
 }
 
 async function request(path, options = {}) {
-  const method = (options.method || "GET").toUpperCase()
+  // Authenticate with the Supabase access token as a Bearer JWT. Public
+  // endpoints (e.g. /shared/<token>/) work fine when no one is signed in —
+  // the header is simply omitted. No CSRF token: bearer auth isn't cookie-based.
+  const token = await getAccessToken()
   const headers = {
     "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers,
-  }
-
-  if (method !== "GET" && method !== "HEAD") {
-    headers["X-CSRFToken"] = getCSRFToken()
   }
 
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
     headers,
-    credentials: "include",
   })
 
   if (res.status === 204) return null
@@ -134,6 +133,20 @@ export const tablesApi = {
       method: "POST",
       body: JSON.stringify({ status, resolution_note: resolutionNote || "" }),
     }),
+
+  createTransfer: (id, { fromPlayer, toPlayer, amount, note }) =>
+    request(`/tables/${id}/transfers/`, {
+      method: "POST",
+      body: JSON.stringify({
+        from_player: fromPlayer,
+        to_player: toPlayer,
+        amount,
+        note: note || "",
+      }),
+    }),
+
+  deleteTransfer: (id, transferId) =>
+    request(`/tables/${id}/transfers/${transferId}/`, { method: "DELETE" }),
 }
 
 export const sharedApi = {

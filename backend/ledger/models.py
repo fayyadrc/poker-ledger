@@ -16,6 +16,10 @@ def default_chip_values():
 
 class LedgerUser(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="ledger_profile")
+    # Stable link to the Supabase Auth user (GoTrue `sub`, a UUID). Set on first
+    # authenticated request by SupabaseJWTAuthentication. Null for rows created
+    # before the migration and for users who have not signed in via Supabase yet.
+    supabase_id = models.CharField(max_length=64, unique=True, null=True, blank=True, db_index=True)
     default_currency = models.CharField(max_length=3, default="GBP")
     chip_default_values = models.JSONField(default=default_chip_values)
     session_sort_order = models.CharField(max_length=4, default="desc")

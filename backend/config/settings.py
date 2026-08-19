@@ -28,9 +28,6 @@ INSTALLED_APPS = [
     "django.contrib.sites",
     "rest_framework",
     "corsheaders",
-    "allauth",
-    "allauth.account",
-    "allauth.headless",
     "ledger",
 ]
 
@@ -42,7 +39,6 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "allauth.account.middleware.AccountMiddleware",
     "config.middleware.SetRLSUserMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -163,20 +159,24 @@ else:
         }
     }
 
-AUTHENTICATION_BACKENDS = [
-    "django.contrib.auth.backends.ModelBackend",
-    "allauth.account.auth_backends.AuthenticationBackend",
-]
-
-HEADLESS_ONLY = True
-
-ACCOUNT_EMAIL_VERIFICATION = "none"
-ACCOUNT_LOGIN_METHODS = {"email"}
-ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*"]
+# ── Supabase Auth ──────────────────────────────────────────────────────────
+# The SPA logs in against Supabase and sends the access token as a Bearer JWT.
+# SupabaseJWTAuthentication verifies it and maps the identity onto a Django
+# user. Keep secrets server-side only; the frontend uses the anon/publishable
+# key. See SUPABASE_AUTH_SETUP.md.
+#
+# Verification method is per-project, not a fallback chain: newer Supabase
+# projects sign tokens with an asymmetric key (ES256) and need SUPABASE_URL
+# (fetches the public key from the project's JWKS endpoint); older projects
+# use the legacy shared HS256 secret instead. Set whichever matches your
+# project — check Project Settings → API → JWT Settings.
+SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
+SUPABASE_JWT_AUD = os.getenv("SUPABASE_JWT_AUD", "authenticated")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.SessionAuthentication",
+        "config.authentication.SupabaseJWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",

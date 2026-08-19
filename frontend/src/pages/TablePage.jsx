@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
-import { Play, Users, Settings, ArrowDownWideNarrow, ArrowUpWideNarrow, MessageSquarePlus, LogOut, AlertCircle } from "lucide-react"
+import { Play, Users, Settings, ArrowDownWideNarrow, ArrowUpWideNarrow, MessageSquarePlus, HandCoins, LogOut, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   ResponsiveDialog,
@@ -25,6 +25,7 @@ import {
   useCreateSession,
   useTableRequests,
   useLeaveTable,
+  useDeleteTransfer,
 } from "@/lib/queries"
 import NotFoundState from "@/components/layout/NotFoundState"
 import PageHeader from "@/components/layout/PageHeader"
@@ -33,6 +34,7 @@ import Leaderboard from "@/components/table/Leaderboard"
 import TransfersList from "@/components/table/TransfersList"
 import SessionsList from "@/components/table/SessionsList"
 import RaiseRequestDialog from "@/components/table/RaiseRequestDialog"
+import AddTransferDialog from "@/components/table/AddTransferDialog"
 import RequestsList from "@/components/table/RequestsList"
 import PlayerAnalytics from "@/components/table/PlayerAnalytics"
 import ConfirmDialog from "@/components/ui/ConfirmDialog"
@@ -66,9 +68,12 @@ export default function TablePage() {
   const [startError, setStartError] = useState("")
 
   const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false)
+  const [isTransferDialogOpen, setIsTransferDialogOpen] = useState(false)
+  const [transferToDelete, setTransferToDelete] = useState(null)
   const [isLeaveOpen, setIsLeaveOpen] = useState(false)
   const [isLabsOpen, setIsLabsOpen] = useState(false)
   const leaveTable = useLeaveTable(id)
+  const deleteTransfer = useDeleteTransfer(id)
   const { tap: tapViewerBadge } = useSecretTaps({
     taps: 7,
     onUnlock: () => setIsLabsOpen(true),
@@ -203,7 +208,26 @@ export default function TablePage() {
           currency={table.currency}
         />
 
-        <TransfersList transfers={table.transfers || []} currency={table.currency} />
+        <div className="space-y-3">
+          {isOwner && (
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-11 gap-1.5 rounded-xl"
+                onClick={() => setIsTransferDialogOpen(true)}
+              >
+                <HandCoins className="size-4" />
+                Record settlement
+              </Button>
+            </div>
+          )}
+          <TransfersList
+            transfers={table.transfers || []}
+            currency={table.currency}
+            onDelete={isOwner ? (transfer) => setTransferToDelete(transfer) : undefined}
+          />
+        </div>
 
         <section className="space-y-3">
           <div className="flex items-center justify-between gap-2">
@@ -289,6 +313,34 @@ export default function TablePage() {
         sessions={sessions}
         open={isRequestDialogOpen}
         onOpenChange={setIsRequestDialogOpen}
+      />
+
+      <AddTransferDialog
+        tableId={id}
+        members={members}
+        open={isTransferDialogOpen}
+        onOpenChange={setIsTransferDialogOpen}
+      />
+
+      <ConfirmDialog
+        open={Boolean(transferToDelete)}
+        onOpenChange={(next) => {
+          if (!next) setTransferToDelete(null)
+        }}
+        title="Delete this cash settlement?"
+        description={
+          transferToDelete
+            ? `${transferToDelete.from_player} → ${transferToDelete.to_player} will no longer be recorded.`
+            : ""
+        }
+        confirmLabel="Delete"
+        destructive
+        pending={deleteTransfer.isPending}
+        onConfirm={() => {
+          deleteTransfer.mutate(transferToDelete.id, {
+            onSuccess: () => setTransferToDelete(null),
+          })
+        }}
       />
 
       <ResponsiveDialog open={isLabsOpen} onOpenChange={setIsLabsOpen}>

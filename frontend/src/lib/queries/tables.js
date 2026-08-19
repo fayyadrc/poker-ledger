@@ -170,3 +170,26 @@ export function useResolveRequest(tableId) {
     },
   })
 }
+
+export function useCreateTransfer(tableId) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ fromPlayer, toPlayer, amount, note }) =>
+      tablesApi.createTransfer(tableId, { fromPlayer, toPlayer, amount, note }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.table(tableId) })
+    },
+  })
+}
+
+export function useDeleteTransfer(tableId) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (transferId) => tablesApi.deleteTransfer(tableId, transferId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.table(tableId) })
+    },
+  })
+}
