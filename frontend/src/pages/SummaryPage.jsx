@@ -1,15 +1,25 @@
 import { useEffect, useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
-import { CheckCircle2, Pencil } from "lucide-react"
+import { CheckCircle2, Pencil, Trash2, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import MoneyInput from "@/components/ui/MoneyInput"
 import DiscrepancyDialog from "@/components/session/DiscrepancyDialog"
+import ConfirmDialog from "@/components/ui/ConfirmDialog"
+import {
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+  ResponsiveDialogFooter,
+  ResponsiveDialogDescription,
+} from "@/components/ui/responsive-dialog"
 import { formatMoney, getCurrencySymbol } from "@/lib/currency"
 import { useAnimatedList } from "@/lib/hooks/useAnimatedList"
-import { useSession, useAdjustSession } from "@/lib/queries"
+import { useSession, useAdjustSession, useAddPlayer, useDeleteSession } from "@/lib/queries"
 import {
   buildAdjustPayload,
   draftFromPlayers,
@@ -33,12 +43,18 @@ export default function SummaryPage() {
   const navigate = useNavigate()
   const { data: session, isLoading } = useSession(id)
   const adjustSession = useAdjustSession(id, session?.table)
+  const addPlayer = useAddPlayer(id)
+  const deleteSession = useDeleteSession(id, session?.table)
   const [standingsRef] = useAnimatedList()
 
   const [isEditing, setIsEditing] = useState(false)
   const [draft, setDraft] = useState({})
   const [editError, setEditError] = useState("")
   const [isDiscrepancyDialogOpen, setIsDiscrepancyDialogOpen] = useState(false)
+  const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false)
+  const [newPlayerName, setNewPlayerName] = useState("")
+  const [addPlayerError, setAddPlayerError] = useState("")
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
 
   useEffect(() => {
     if (!session?.players || isEditing) return
@@ -117,6 +133,28 @@ export default function SummaryPage() {
     saveAdjust(false)
   }
 
+  const handleAddPlayer = () => {
+    if (!newPlayerName.trim()) return
+    setAddPlayerError("")
+
+    addPlayer.mutate(newPlayerName.trim(), {
+      onSuccess: () => {
+        setIsAddPlayerOpen(false)
+        setNewPlayerName("")
+      },
+      onError: (err) => setAddPlayerError(err.message),
+    })
+  }
+
+  const handleDeleteSession = () => {
+    deleteSession.mutate(undefined, {
+      onSuccess: () => {
+        setIsDeleteOpen(false)
+        navigate(`/table/${session.table}`, { replace: true })
+      },
+    })
+  }
+
   return (
     <div className="page-stack pb-safe">
       <PageHeader
@@ -132,10 +170,15 @@ export default function SummaryPage() {
         }
         action={
           canEdit && !isEditing ? (
-            <Button variant="outline" className="h-11 min-h-11 gap-1.5 rounded-xl" onClick={startEditing}>
-              <Pencil className="size-4" />
-              Edit amounts
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="icon" className="h-11 min-h-11 rounded-xl" onClick={() => setIsDeleteOpen(true)} aria-label="Delete session">
+                <Trash2 className="size-4" />
+              </Button>
+              <Button variant="outline" className="h-11 min-h-11 gap-1.5 rounded-xl" onClick={startEditing}>
+                <Pencil className="size-4" />
+                Edit amounts
+              </Button>
+            </div>
           ) : null
         }
       />
@@ -300,6 +343,12 @@ export default function SummaryPage() {
                 </Card>
               )
             })}
+
+            {canEdit && (
+              <Button variant="outline" className="h-12 w-full rounded-xl border-dashed" onClick={() => setIsAddPlayerOpen(true)}>
+                <UserPlus className="mr-2 size-4" /> Add Player
+              </Button>
+            )}
           </div>
         )}
       </section>
@@ -327,6 +376,39 @@ export default function SummaryPage() {
         isPending={adjustSession.isPending}
         onConfirm={() => saveAdjust(true)}
       />
+
+      <ConfirmDialog
+        open={isDeleteOpen}
+        onOpenChange={setIsDeleteOpen}
+        title="Delete this session?"
+        description="This cannot be undone. Buy-ins and players for this session will be removed."
+        confirmLabel="Delete session"
+        destructive
+        pending={deleteSession.isPending}
+        onConfirm={handleDeleteSession}
+      />
+
+      <ResponsiveDialog open={isAddPlayerOpen} onOpenChange={setIsAddPlayerOpen}>
+        <ResponsiveDialogContent className="sm:max-w-sm border-border/50 bg-card/80 backdrop-blur-xl">
+          <ResponsiveDialogHeader>
+            <ResponsiveDialogTitle>Add Player</ResponsiveDialogTitle>
+            <ResponsiveDialogDescription>Add a player who was left off this session.</ResponsiveDialogDescription>
+          </ResponsiveDialogHeader>
+          <div className="space-y-3 py-2">
+            <Label>Player Name</Label>
+            <Input value={newPlayerName} onChange={e => setNewPlayerName(e.target.value)}
+              placeholder="Their name" className="h-11 bg-background/50"
+              onKeyDown={e => e.key === "Enter" && handleAddPlayer()} autoFocus />
+            {addPlayerError && <p className="text-sm text-destructive">{addPlayerError}</p>}
+          </div>
+          <ResponsiveDialogFooter>
+            <Button variant="ghost" onClick={() => setIsAddPlayerOpen(false)}>Cancel</Button>
+            <Button onClick={handleAddPlayer} disabled={!newPlayerName.trim() || addPlayer.isPending}>
+              {addPlayer.isPending ? "Adding…" : "Add Player"}
+            </Button>
+          </ResponsiveDialogFooter>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
     </div>
   )
 }

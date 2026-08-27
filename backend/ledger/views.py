@@ -382,8 +382,6 @@ class SessionViewSet(viewsets.GenericViewSet):
     @action(detail=True, methods=["post"], url_path="add-player")
     def add_player(self, request, pk=None):
         session = self.get_object()
-        if session.is_completed:
-            return Response({"detail": "Session is already completed."}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = AddPlayerSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -392,6 +390,11 @@ class SessionViewSet(viewsets.GenericViewSet):
             session=session,
             name=serializer.validated_data["name"],
         )
+
+        if session.is_completed:
+            # Net is zero until buy-in/cash-out are set via `adjust`, so
+            # settlements are unaffected; recompute keeps them consistent.
+            persist_settlements(session)
 
         log_session_audit(
             session,
