@@ -6,6 +6,7 @@ export const queryKeys = {
   tableSessions: (id, sortOrder = "desc") => ["tables", id, "sessions", sortOrder],
   session: (id) => ["sessions", id],
   sessionAuditLog: (id) => ["sessions", id, "audit-log"],
+  settlementHistory: (id) => ["sessions", id, "settlement-history"],
   shared: (token) => ["shared", token],
   tableShareLink: (id) => ["tables", id, "share-link"],
   tableMemberships: (id) => ["tables", id, "memberships"],

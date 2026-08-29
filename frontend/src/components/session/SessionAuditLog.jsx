@@ -5,7 +5,7 @@ import SectionPill from "@/components/reactbits/SectionPill"
 import { formatAuditTimestamp } from "@/lib/formatDate"
 import { useSessionAuditLog } from "@/lib/queries"
 
-const ACTION_LABELS = {
+export const ACTION_LABELS = {
   session_created: "Started",
   date_changed: "Date changed",
   buy_in_added: "Buy-in",
@@ -13,9 +13,11 @@ const ACTION_LABELS = {
   session_completed: "Completed",
   session_completed_with_discrepancy: "Completed with discrepancy",
   amounts_adjusted: "Amounts adjusted",
+  session_imported: "Imported",
+  migrated: "Migrated",
 }
 
-function actionVariant(action) {
+export function actionVariant(action) {
   if (action === "session_completed_with_discrepancy") return "destructive"
   if (action === "session_completed") return "default"
   return "secondary"

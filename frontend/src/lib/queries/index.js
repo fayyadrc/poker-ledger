@@ -24,6 +24,7 @@ export {
 export {
   useSession,
   useSessionAuditLog,
+  useSettlementHistory,
   useUpdateSession,
   useAddBuyIn,
   useAddPlayer,

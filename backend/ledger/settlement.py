@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from .models import SessionSettlement
+from .models import SessionSettlement, SettlementBatch
 
 MONEY_TOLERANCE = Decimal("0.01")
 
@@ -63,19 +63,31 @@ def compute_settlements(players):
     return settlements
 
 
-def persist_settlements(session):
-    """Replace stored settlements for a session with freshly computed ones."""
+def persist_settlements(session, *, reason, discrepancy=Decimal("0")):
+    """Recompute settlements for a session, keeping prior batches as history.
+
+    Older settlement rows are never deleted — they're flagged `is_current=False`
+    so past batches remain queryable via `session.settlement_batches`.
+    """
     players = list(session.players.all())
-    session.settlements.all().delete()
     settlements = compute_settlements(players)
+
+    session.settlements.filter(is_current=True).update(is_current=False)
+    batch = SettlementBatch.objects.create(
+        session=session,
+        reason=reason,
+        discrepancy=quantize_money(discrepancy),
+    )
     SessionSettlement.objects.bulk_create(
         [
             SessionSettlement(
                 session=session,
+                batch=batch,
                 from_player=item["from_player"],
                 to_player=item["to_player"],
                 amount=item["amount"],
                 order=index,
+                is_current=True,
             )
             for index, item in enumerate(settlements)
         ]

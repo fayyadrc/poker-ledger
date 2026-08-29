@@ -149,12 +149,32 @@ class SessionPlayer(models.Model):
         return f"{self.name} in session {self.session.id}"
 
 
+class SettlementBatch(models.Model):
+    """One settlement recompute event for a session (grouping of SessionSettlement lines)."""
+
+    session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="settlement_batches")
+    # Mirrors SessionAuditEntry.action values (session_completed, amounts_adjusted,
+    # player_added, session_imported, migrated) so history labels line up with the
+    # existing activity log.
+    reason = models.CharField(max_length=32)
+    discrepancy = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self):
+        return f"Batch #{self.pk} for session {self.session_id} ({self.reason})"
+
+
 class SessionSettlement(models.Model):
     session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="settlements")
+    batch = models.ForeignKey(SettlementBatch, on_delete=models.CASCADE, related_name="lines")
     from_player = models.CharField(max_length=100)
     to_player = models.CharField(max_length=100)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     order = models.PositiveSmallIntegerField(default=0)
+    is_current = models.BooleanField(default=True)
 
     class Meta:
         ordering = ["order", "id"]

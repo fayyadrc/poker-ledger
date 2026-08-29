@@ -27,23 +27,35 @@ export default function SessionSettlement({ settlements = [], currency = "GBP" }
         </div>
         <p className="text-caption">Who pays whom to settle up after this session.</p>
       </div>
-      <div className="space-y-3">
-        {settlements.map((item) => (
-          <SpotlightCard
-            key={item.id ?? `${item.from_player}-${item.to_player}-${item.amount}`}
-            className="flex flex-row items-center justify-between gap-4 p-5"
-          >
-            <div className="flex min-w-0 flex-1 items-center gap-2 font-medium">
-              <span className="truncate">{item.from_player}</span>
-              <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
-              <span className="truncate">{item.to_player}</span>
-            </div>
-            <span className="shrink-0 font-semibold tabular-nums text-primary">
-              {formatMoney(item.amount, currency)}
-            </span>
-          </SpotlightCard>
-        ))}
-      </div>
+      <SpotlightCard className="overflow-x-auto p-0">
+        <table className="w-full text-left">
+          <thead>
+            <tr className="border-b border-border/50 text-caption">
+              <th className="px-5 py-3 font-medium">From</th>
+              <th className="px-5 py-3 font-medium" />
+              <th className="px-5 py-3 font-medium">To</th>
+              <th className="px-5 py-3 text-right font-medium">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {settlements.map((item) => (
+              <tr
+                key={item.id ?? `${item.from_player}-${item.to_player}-${item.amount}`}
+                className="border-b border-border/30 last:border-0"
+              >
+                <td className="max-w-0 truncate px-5 py-3 font-medium">{item.from_player}</td>
+                <td className="px-2 py-3">
+                  <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
+                </td>
+                <td className="max-w-0 truncate px-5 py-3 font-medium">{item.to_player}</td>
+                <td className="px-5 py-3 text-right font-semibold tabular-nums text-primary">
+                  {formatMoney(item.amount, currency)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </SpotlightCard>
     </section>
   )
 }

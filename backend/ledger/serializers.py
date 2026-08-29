@@ -11,6 +11,7 @@ from .models import (
     Session,
     SessionPlayer,
     SessionSettlement,
+    SettlementBatch,
     SessionAuditEntry,
 )
 
@@ -148,6 +149,14 @@ class SessionSettlementSerializer(serializers.ModelSerializer):
         fields = ("id", "from_player", "to_player", "amount", "order")
 
 
+class SettlementBatchSerializer(serializers.ModelSerializer):
+    lines = SessionSettlementSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = SettlementBatch
+        fields = ("id", "reason", "discrepancy", "created_at", "lines")
+
+
 class SessionAuditEntrySerializer(serializers.ModelSerializer):
     class Meta:
         model = SessionAuditEntry
@@ -157,6 +166,7 @@ class SessionAuditEntrySerializer(serializers.ModelSerializer):
 
 class SessionSerializer(serializers.ModelSerializer):
     players = SessionPlayerSerializer(many=True, read_only=True)
+    settlements = serializers.SerializerMethodField()
     table_currency = serializers.CharField(source="table.currency", read_only=True)
     player_names = serializers.ListField(
         child=serializers.CharField(max_length=100),
@@ -180,11 +190,21 @@ class SessionSerializer(serializers.ModelSerializer):
             "date",
             "is_completed",
             "players",
+            "settlements",
             "player_names",
             "initial_buy_ins",
             "created_at",
         )
         read_only_fields = ("id", "table", "is_completed", "created_at")
+
+    def get_settlements(self, obj):
+        # `current_settlements` is populated by a filtered Prefetch where available;
+        # fall back to a direct query for instances that weren't fetched that way
+        # (e.g. a session just created via POST /tables/{id}/sessions/).
+        settlements = getattr(obj, "current_settlements", None)
+        if settlements is None:
+            settlements = obj.settlements.filter(is_current=True)
+        return SessionSettlementSerializer(settlements, many=True).data
 
     def validate(self, attrs):
         player_names = attrs.get("player_names") or []
@@ -206,11 +226,10 @@ class SessionSerializer(serializers.ModelSerializer):
 
 
 class SessionDetailSerializer(SessionSerializer):
-    settlements = SessionSettlementSerializer(many=True, read_only=True)
     can_edit = serializers.SerializerMethodField()
 
     class Meta(SessionSerializer.Meta):
-        fields = SessionSerializer.Meta.fields + ("settlements", "can_edit")
+        fields = SessionSerializer.Meta.fields + ("can_edit",)
 
     def get_can_edit(self, obj):
         request = self.context.get("request")

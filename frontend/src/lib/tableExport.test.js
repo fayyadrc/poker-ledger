@@ -20,6 +20,9 @@ describe("tableExport", () => {
           { name: "Alice", total_buy_in: "20.00", cash_out: "30.00" },
           { name: "Bob", total_buy_in: "20.00", cash_out: "10.00" },
         ],
+        settlements: [
+          { id: 1, from_player: "Bob", to_player: "Alice", amount: "10.00", order: 0 },
+        ],
       },
       {
         date: "2026-04-06",
@@ -45,6 +48,9 @@ describe("tableExport", () => {
               players: [
                 { name: "Alice", total_buy_in: "20.00", cash_out: "30.00" },
                 { name: "Bob", total_buy_in: "20.00", cash_out: "10.00" },
+              ],
+              settlements: [
+                { from_player: "Bob", to_player: "Alice", amount: "10.00" },
               ],
             },
           ],

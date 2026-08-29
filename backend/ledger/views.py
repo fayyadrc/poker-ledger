@@ -1,6 +1,6 @@
 import secrets
 
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -9,7 +9,15 @@ from rest_framework.response import Response
 
 from . import cache_utils as cache
 from .audit import log_session_audit
-from .models import ChangeRequest, Table, TableMembership, TableTransfer, Session, SessionPlayer
+from .models import (
+    ChangeRequest,
+    Table,
+    TableMembership,
+    TableTransfer,
+    Session,
+    SessionPlayer,
+    SessionSettlement,
+)
 from .serializers import (
     ChangeRequestSerializer,
     ResolveRequestSerializer,
@@ -21,6 +29,7 @@ from .serializers import (
     SessionDetailSerializer,
     SessionPlayerSerializer,
     SessionAuditEntrySerializer,
+    SettlementBatchSerializer,
     AddBuyInSerializer,
     AddPlayerSerializer,
     CompleteSessionSerializer,
@@ -34,6 +43,14 @@ from .settlement import (
 )
 
 SESSION_ORDERING = set(cache.SESSION_ORDERINGS)
+
+
+def _current_settlements_prefetch():
+    return Prefetch(
+        "settlements",
+        queryset=SessionSettlement.objects.filter(is_current=True),
+        to_attr="current_settlements",
+    )
 
 
 def _viewer_ids(table):
@@ -118,7 +135,9 @@ class TableViewSet(viewsets.ModelViewSet):
             if cached is not None:
                 return Response(cached)
 
-            sessions = table.sessions.prefetch_related("players").order_by(ordering, "-created_at")
+            sessions = table.sessions.prefetch_related(
+                "players", _current_settlements_prefetch()
+            ).order_by(ordering, "-created_at")
             data = SessionSerializer(sessions, many=True).data
             cache.cache_set(key, data)
             return Response(data)
@@ -279,11 +298,13 @@ class SessionViewSet(viewsets.GenericViewSet):
 
     # Members may read; only the table owner may mutate (members get 404 on
     # mutation endpoints because the mutating queryset excludes their tables).
-    READ_ACTIONS = {"retrieve", "audit_log"}
+    READ_ACTIONS = {"retrieve", "audit_log", "settlement_history"}
 
     def get_queryset(self):
         user = self.request.user
-        base = Session.objects.select_related("table").prefetch_related("players", "settlements")
+        base = Session.objects.select_related("table").prefetch_related(
+            "players", _current_settlements_prefetch()
+        )
         if self.action in self.READ_ACTIONS:
             return base.filter(Q(table__owner=user) | Q(table__memberships__user=user)).distinct()
         return base.filter(table__owner=user)
@@ -343,6 +364,12 @@ class SessionViewSet(viewsets.GenericViewSet):
         entries = session.audit_entries.all()
         return Response(SessionAuditEntrySerializer(entries, many=True).data)
 
+    @action(detail=True, methods=["get"], url_path="settlement-history")
+    def settlement_history(self, request, pk=None):
+        session = self.get_object()
+        batches = session.settlement_batches.prefetch_related("lines").all()
+        return Response(SettlementBatchSerializer(batches, many=True).data)
+
     @action(detail=True, methods=["post"], url_path="buy-in")
     def buy_in(self, request, pk=None):
         session = self.get_object()
@@ -394,7 +421,7 @@ class SessionViewSet(viewsets.GenericViewSet):
         if session.is_completed:
             # Net is zero until buy-in/cash-out are set via `adjust`, so
             # settlements are unaffected; recompute keeps them consistent.
-            persist_settlements(session)
+            persist_settlements(session, reason="player_added")
 
         log_session_audit(
             session,
@@ -445,7 +472,7 @@ class SessionViewSet(viewsets.GenericViewSet):
         session.is_completed = True
         session.save()
 
-        settlements = persist_settlements(session)
+        settlements = persist_settlements(session, reason="session_completed", discrepancy=discrepancy)
         unbalanced = has_discrepancy(discrepancy)
         quantized = quantize_money(discrepancy)
 
@@ -535,7 +562,7 @@ class SessionViewSet(viewsets.GenericViewSet):
                 }
             )
 
-        settlements = persist_settlements(session)
+        settlements = persist_settlements(session, reason="amounts_adjusted", discrepancy=discrepancy)
         unbalanced = has_discrepancy(discrepancy)
         quantized = quantize_money(discrepancy)
 

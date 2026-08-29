@@ -197,4 +197,6 @@ export const sessionsApi = {
     }),
 
   auditLog: (sessionId) => request(`/sessions/${sessionId}/audit-log/`),
+
+  settlementHistory: (sessionId) => request(`/sessions/${sessionId}/settlement-history/`),
 }

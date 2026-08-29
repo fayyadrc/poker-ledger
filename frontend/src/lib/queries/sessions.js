@@ -18,6 +18,14 @@ export function useSessionAuditLog(sessionId) {
   })
 }
 
+export function useSettlementHistory(sessionId) {
+  return useQuery({
+    queryKey: queryKeys.settlementHistory(sessionId),
+    queryFn: () => sessionsApi.settlementHistory(sessionId),
+    enabled: Boolean(sessionId),
+  })
+}
+
 export function useUpdateSession(sessionId, tableId) {
   const queryClient = useQueryClient()
 
@@ -156,6 +164,7 @@ export function useAddPlayer(sessionId) {
         }
       })
       queryClient.invalidateQueries({ queryKey: queryKeys.sessionAuditLog(sessionId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.settlementHistory(sessionId) })
     },
   })
 }
@@ -169,6 +178,7 @@ export function useCompleteSession(sessionId) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.sessionAuditLog(sessionId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.settlementHistory(sessionId) })
     },
   })
 }
@@ -182,6 +192,7 @@ export function useAdjustSession(sessionId, tableId) {
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKeys.session(sessionId), updated)
       queryClient.invalidateQueries({ queryKey: queryKeys.sessionAuditLog(sessionId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.settlementHistory(sessionId) })
       if (tableId) {
         queryClient.invalidateQueries({ queryKey: ["tables", tableId, "sessions"] })
         queryClient.invalidateQueries({ queryKey: queryKeys.table(tableId) })

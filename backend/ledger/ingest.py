@@ -105,7 +105,9 @@ def ingest_tables(user, tables_data, *, actor_id):
                     )
 
                 discrepancy = discrepancy_between(total_buy_in, total_cash_out)
-                settlements = persist_settlements(session)
+                settlements = persist_settlements(
+                    session, reason="session_imported", discrepancy=discrepancy
+                )
                 unbalanced = has_discrepancy(discrepancy)
                 quantized = quantize_money(discrepancy)
 

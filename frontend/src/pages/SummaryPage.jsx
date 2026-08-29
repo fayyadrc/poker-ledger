@@ -36,6 +36,7 @@ import PageHeader from "@/components/layout/PageHeader"
 import PageSkeleton from "@/components/layout/PageSkeleton"
 import SessionDateEdit from "@/components/session/SessionDateEdit"
 import SessionSettlement from "@/components/session/SessionSettlement"
+import SettlementHistory from "@/components/session/SettlementHistory"
 import SessionAuditLog from "@/components/session/SessionAuditLog"
 
 export default function SummaryPage() {
@@ -354,6 +355,8 @@ export default function SummaryPage() {
       </section>
 
       {!isEditing && <SessionSettlement settlements={session.settlements} currency={currency} />}
+
+      {!isEditing && <SettlementHistory sessionId={session.id} currency={currency} />}
 
       <SessionAuditLog sessionId={session.id} />
 

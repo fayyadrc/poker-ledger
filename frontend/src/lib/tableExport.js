@@ -12,6 +12,11 @@ export function buildTableExportPayload(table, sessions = []) {
         total_buy_in: String(player.total_buy_in ?? "0"),
         cash_out: String(player.cash_out ?? "0"),
       })),
+      settlements: (session.settlements || []).map((settlement) => ({
+        from_player: settlement.from_player,
+        to_player: settlement.to_player,
+        amount: String(settlement.amount),
+      })),
     }))
 
   const transfers = (table.transfers || []).map((transfer) => {

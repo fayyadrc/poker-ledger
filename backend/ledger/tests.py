@@ -13,6 +13,7 @@ from ledger.models import (
     Session,
     SessionPlayer,
     SessionSettlement,
+    SettlementBatch,
     SessionAuditEntry,
     LedgerUser,
     TableTransfer,
@@ -341,8 +342,9 @@ class SessionAPITests(TestCase):
         loser = SessionPlayer.objects.create(
             session=session, name="Fayyad", total_buy_in="20.00", cash_out="5.00"
         )
+        batch = SettlementBatch.objects.create(session=session, reason="migrated")
         SessionSettlement.objects.create(
-            session=session, from_player="Fayyad", to_player="DJ", amount="15.00", order=0
+            session=session, batch=batch, from_player="Fayyad", to_player="DJ", amount="15.00", order=0
         )
 
         response = self.client.post(
@@ -367,6 +369,51 @@ class SessionAPITests(TestCase):
         self.assertTrue(
             SessionAuditEntry.objects.filter(session=session, action="amounts_adjusted").exists()
         )
+
+    def test_settlement_recompute_keeps_history_instead_of_deleting(self):
+        session = Session.objects.create(table=self.table)
+        winner = SessionPlayer.objects.create(session=session, name="DJ", total_buy_in="20.00")
+        loser = SessionPlayer.objects.create(session=session, name="Fayyad", total_buy_in="20.00")
+
+        self.client.post(
+            f"/api/sessions/{session.id}/complete/",
+            {
+                "cash_outs": [
+                    {"player_id": winner.id, "cash_out": "35.00"},
+                    {"player_id": loser.id, "cash_out": "5.00"},
+                ],
+            },
+            format="json",
+        )
+
+        self.client.post(
+            f"/api/sessions/{session.id}/adjust/",
+            {
+                "players": [
+                    {"player_id": winner.id, "total_buy_in": "20.00", "cash_out": "25.00"},
+                    {"player_id": loser.id, "total_buy_in": "20.00", "cash_out": "15.00"},
+                ],
+            },
+            format="json",
+        )
+
+        # Both batches still exist — nothing was deleted.
+        self.assertEqual(SessionSettlement.objects.filter(session=session).count(), 2)
+        self.assertEqual(SettlementBatch.objects.filter(session=session).count(), 2)
+
+        response = self.client.get(f"/api/sessions/{session.id}/settlement-history/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        batches = response.json()
+        self.assertEqual(len(batches), 2)
+        self.assertEqual(batches[0]["reason"], "amounts_adjusted")
+        self.assertEqual(batches[0]["lines"][0]["amount"], "5.00")
+        self.assertEqual(batches[1]["reason"], "session_completed")
+        self.assertEqual(batches[1]["lines"][0]["amount"], "15.00")
+
+        # Only the latest batch is "current" on the session detail payload.
+        detail = self.client.get(f"/api/sessions/{session.id}/").json()
+        self.assertEqual(len(detail["settlements"]), 1)
+        self.assertEqual(detail["settlements"][0]["amount"], "5.00")
 
     def test_adjust_rejects_imbalance_without_flag(self):
         session = Session.objects.create(table=self.table, is_completed=True)
@@ -922,6 +969,9 @@ class MembershipTests(TestCase):
         self.assertEqual(session_response.status_code, 200)
         self.assertFalse(session_response.json()["can_edit"])
         self.assertEqual(self.member_client.get(f"/api/sessions/{self.session.id}/audit-log/").status_code, 200)
+        self.assertEqual(
+            self.member_client.get(f"/api/sessions/{self.session.id}/settlement-history/").status_code, 200
+        )
 
     def test_owner_session_detail_has_can_edit(self):
         response = self.owner_client.get(f"/api/sessions/{self.session.id}/")
