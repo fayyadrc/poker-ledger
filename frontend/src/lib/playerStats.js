@@ -16,23 +16,17 @@ export function computePlayerStats(members, sessions, transfers) {
     return acc
   }, {})
 
-  // A transfer only has existing debt to "settle" up to what the payer
-  // actually owes and what the recipient is actually owed — that portion
-  // nets both balances toward zero (paying down real debt). Any amount
-  // beyond that isn't backed by a recorded debt, so it's plain cash leaving
-  // the payer's pocket and landing in the recipient's, same as a buy-in /
-  // cash-out: it moves the payer's balance down and the recipient's up.
+  // A cash transfer always moves both players' balances the same way,
+  // regardless of whether either side is currently in debt: the payer's
+  // balance goes up by the amount paid, the recipient's goes down.
   for (const transfer of transfers || []) {
     const amount = toAmount(transfer.amount)
-    const fromStats = stats[transfer.from_player]
-    const toStats = stats[transfer.to_player]
-    const owedByFrom = fromStats ? Math.max(0, -fromStats.totalProfit) : 0
-    const owedToRecipient = toStats ? Math.max(0, toStats.totalProfit) : 0
-    const settlePortion = Math.min(amount, owedByFrom, owedToRecipient)
-    const excess = amount - settlePortion
-    const netChangeForFrom = settlePortion - excess
-    if (fromStats) fromStats.totalProfit += netChangeForFrom
-    if (toStats) toStats.totalProfit -= netChangeForFrom
+    if (stats[transfer.from_player]) {
+      stats[transfer.from_player].totalProfit += amount
+    }
+    if (stats[transfer.to_player]) {
+      stats[transfer.to_player].totalProfit -= amount
+    }
   }
 
   return stats
@@ -92,9 +86,7 @@ export function computePlayerAnalytics(playerName, members, sessions, transfers)
     if (transfer.to_player === playerName) transferIn += amount
     if (transfer.from_player === playerName) transferOut += amount
   }
-  // Delegate the actual profit adjustment to computePlayerStats — it applies
-  // the debt-vs-excess split (see its comment) across every player's
-  // transfers, which this single-player loop above can't do on its own.
+  // Delegate to computePlayerStats so the transfer math lives in one place.
   const totalProfit = computePlayerStats(members || [], sessions, transfers)[playerName]?.totalProfit ?? sessionProfit
   const transferNet = totalProfit - sessionProfit
 

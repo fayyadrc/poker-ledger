@@ -33,58 +33,35 @@ const sessions = [
 const transfers = [{ from_player: "Alice", to_player: "Bob", amount: "10" }]
 
 describe("computePlayerStats", () => {
-  it("treats a transfer as plain cash flow when neither side has debt backing it", () => {
-    // Alice is up 15 (not in debt) and Bob is down 15 (not owed anything), so
-    // Alice paying Bob $10 isn't settling any recorded debt between them —
-    // it's just $10 leaving Alice's pocket and landing in Bob's.
+  it("credits the payer and debits the recipient of a cash transfer", () => {
     const stats = computePlayerStats(members, sessions, transfers)
     expect(stats.Alice.totalInvested).toBe(60)
-    expect(stats.Alice.totalProfit).toBe(5) // 15 session profit - 10 paid out
-    expect(stats.Bob.totalProfit).toBe(-5) // -15 session profit + 10 received
+    expect(stats.Alice.totalProfit).toBe(25) // 15 session profit + 10 paid out
+    expect(stats.Bob.totalProfit).toBe(-25) // -15 session profit - 10 received
   })
 
-  it("nets an actual debt toward zero instead of double-counting it", () => {
-    const debtMembers = [{ id: 1, name: "Maya" }, { id: 2, name: "Hriday" }]
-    const debtSessions = [
-      {
-        id: 1,
-        is_completed: true,
-        players: [
-          { name: "Maya", total_buy_in: "0", cash_out: "-103" },
-          { name: "Hriday", total_buy_in: "0", cash_out: "105" },
-        ],
-      },
-    ]
-    const stats = computePlayerStats(
-      debtMembers,
-      debtSessions,
-      [{ from_player: "Maya", to_player: "Hriday", amount: "100" }]
-    )
-    expect(stats.Maya.totalProfit).toBe(-3) // owed 103, paid 100 -> still owes 3
-    expect(stats.Hriday.totalProfit).toBe(5) // owed 105, collected 100 -> still owed 5
-  })
-
-  it("splits a transfer that partly settles debt and partly overpays it", () => {
+  it("applies the same payer-up/recipient-down direction even when it isn't settling debt", () => {
+    // Aryan is up 19.70 (not owed by anyone specifically, not in debt) and
+    // still pays Rohan 30 — the direction doesn't depend on either side's
+    // existing balance.
     const debtMembers = [{ id: 1, name: "Aryan" }, { id: 2, name: "Rohan" }]
     const debtSessions = [
       {
         id: 1,
         is_completed: true,
         players: [
-          { name: "Aryan", total_buy_in: "0", cash_out: "-50" },
-          { name: "Rohan", total_buy_in: "0", cash_out: "80" },
+          { name: "Aryan", total_buy_in: "0", cash_out: "19.70" },
+          { name: "Rohan", total_buy_in: "0", cash_out: "40.80" },
         ],
       },
     ]
     const stats = computePlayerStats(
       debtMembers,
       debtSessions,
-      [{ from_player: "Aryan", to_player: "Rohan", amount: "70" }]
+      [{ from_player: "Aryan", to_player: "Rohan", amount: "30" }]
     )
-    // 50 of the 70 settles Aryan's actual debt (nets to 0); the extra 20 has
-    // no debt behind it, so it's plain cash flow on top of that.
-    expect(stats.Aryan.totalProfit).toBe(-20) // -50 + 50 settled - 20 excess
-    expect(stats.Rohan.totalProfit).toBe(50) // 80 - 50 settled + 20 excess
+    expect(stats.Aryan.totalProfit).toBeCloseTo(49.7)
+    expect(stats.Rohan.totalProfit).toBeCloseTo(10.8)
   })
 })
 
@@ -105,9 +82,8 @@ describe("computePlayerAnalytics", () => {
     expect(analytics.biggestLoss).toBe(-15)
     expect(analytics.transferOut).toBe(10)
     expect(analytics.transferIn).toBe(0)
-    // Alice isn't in debt, so her $10 transfer to Bob is plain cash flow out.
-    expect(analytics.transferNet).toBe(-10)
-    expect(analytics.totalProfit).toBe(5)
+    expect(analytics.transferNet).toBe(10)
+    expect(analytics.totalProfit).toBe(25)
     expect(analytics.history.map((row) => row.sessionId)).toEqual([11, 10])
   })
 
