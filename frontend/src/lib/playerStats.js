@@ -16,17 +16,35 @@ export function computePlayerStats(members, sessions, transfers) {
     return acc
   }, {})
 
+  // A transfer is a real cash settlement, not a new win/loss: paying money out
+  // pays down what you owe (or tops up what you're owed), so it moves your
+  // balance toward zero from below; receiving it moves the recipient's
+  // balance toward zero from above. Net effect across the pair is always 0.
   for (const transfer of transfers || []) {
     const amount = toAmount(transfer.amount)
     if (stats[transfer.from_player]) {
-      stats[transfer.from_player].totalProfit -= amount
+      stats[transfer.from_player].totalProfit += amount
     }
     if (stats[transfer.to_player]) {
-      stats[transfer.to_player].totalProfit += amount
+      stats[transfer.to_player].totalProfit -= amount
     }
   }
 
   return stats
+}
+
+/**
+ * Default amount for a cash settlement between two players, rounded down to
+ * the nearest 10 so small change (e.g. the 5 in 105, the 3 in 103) is left
+ * for the exact figure to be typed in manually instead of forced on anyone.
+ * Returns 0 (no suggestion) when the payer isn't actually in debt or the
+ * recipient isn't actually owed anything.
+ */
+export function suggestSettlementAmount(fromBalance, toBalance) {
+  const owedByFrom = Math.max(0, -fromBalance)
+  const owedToRecipient = Math.max(0, toBalance)
+  const raw = Math.min(owedByFrom, owedToRecipient)
+  return Math.floor(raw / 10) * 10
 }
 
 /** Per-player breakdown for table settings (beta / labs). */
@@ -70,7 +88,9 @@ export function computePlayerAnalytics(playerName, sessions, transfers) {
     if (transfer.to_player === playerName) transferIn += amount
     if (transfer.from_player === playerName) transferOut += amount
   }
-  const transferNet = transferIn - transferOut
+  // Same settlement semantics as computePlayerStats: paying out moves your
+  // balance toward zero (+), receiving moves it toward zero from above (-).
+  const transferNet = transferOut - transferIn
 
   return {
     sessionsPlayed,

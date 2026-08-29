@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { computePlayerAnalytics, computePlayerStats } from "@/lib/playerStats"
+import { computePlayerAnalytics, computePlayerStats, suggestSettlementAmount } from "@/lib/playerStats"
 
 const members = [{ id: 1, name: "Alice" }, { id: 2, name: "Bob" }]
 
@@ -33,11 +33,11 @@ const sessions = [
 const transfers = [{ from_player: "Alice", to_player: "Bob", amount: "10" }]
 
 describe("computePlayerStats", () => {
-  it("aggregates invested and profit including transfers", () => {
+  it("credits the payer and debits the recipient of a cash transfer", () => {
     const stats = computePlayerStats(members, sessions, transfers)
     expect(stats.Alice.totalInvested).toBe(60)
-    expect(stats.Alice.totalProfit).toBe(5) // 30 - 15 - 10 transfer out
-    expect(stats.Bob.totalProfit).toBe(-5) // -30 + 15 + 10 transfer in
+    expect(stats.Alice.totalProfit).toBe(25) // 15 session profit + 10 paid out
+    expect(stats.Bob.totalProfit).toBe(-25) // -15 session profit - 10 received
   })
 })
 
@@ -58,8 +58,8 @@ describe("computePlayerAnalytics", () => {
     expect(analytics.biggestLoss).toBe(-15)
     expect(analytics.transferOut).toBe(10)
     expect(analytics.transferIn).toBe(0)
-    expect(analytics.transferNet).toBe(-10)
-    expect(analytics.totalProfit).toBe(5)
+    expect(analytics.transferNet).toBe(10)
+    expect(analytics.totalProfit).toBe(25)
     expect(analytics.history.map((row) => row.sessionId)).toEqual([11, 10])
   })
 
@@ -68,5 +68,19 @@ describe("computePlayerAnalytics", () => {
     expect(analytics.sessionsPlayed).toBe(0)
     expect(analytics.totalProfit).toBe(0)
     expect(analytics.history).toEqual([])
+  })
+})
+
+describe("suggestSettlementAmount", () => {
+  it("rounds down to the nearest 10 of the smaller outstanding side", () => {
+    expect(suggestSettlementAmount(-103, 105)).toBe(100) // owes 103, owed 105 -> min 103 -> 100
+    expect(suggestSettlementAmount(-105, 103)).toBe(100) // owes 105, owed 103 -> min 103 -> 100
+    expect(suggestSettlementAmount(-119, 200)).toBe(110)
+  })
+
+  it("suggests nothing when the payer isn't in debt or the recipient isn't owed", () => {
+    expect(suggestSettlementAmount(50, 100)).toBe(0) // "payer" is actually up
+    expect(suggestSettlementAmount(-50, -20)).toBe(0) // "recipient" is actually down too
+    expect(suggestSettlementAmount(0, 0)).toBe(0)
   })
 })

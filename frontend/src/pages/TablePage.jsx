@@ -318,6 +318,8 @@ export default function TablePage() {
       <AddTransferDialog
         tableId={id}
         members={members}
+        sessions={sessions}
+        transfers={table.transfers || []}
         open={isTransferDialogOpen}
         onOpenChange={setIsTransferDialogOpen}
       />

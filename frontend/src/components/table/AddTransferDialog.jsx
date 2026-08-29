@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,21 +12,48 @@ import {
   ResponsiveDialogBody,
 } from "@/components/ui/responsive-dialog"
 import { toAmount } from "@/lib/sessionBalance"
+import { computePlayerStats, suggestSettlementAmount } from "@/lib/playerStats"
 import { useCreateTransfer } from "@/lib/queries"
 
-export default function AddTransferDialog({ tableId, members = [], open, onOpenChange }) {
+export default function AddTransferDialog({
+  tableId,
+  members = [],
+  sessions = [],
+  transfers = [],
+  open,
+  onOpenChange,
+}) {
   const createTransfer = useCreateTransfer(tableId)
   const [fromPlayer, setFromPlayer] = useState("")
   const [toPlayer, setToPlayer] = useState("")
   const [amount, setAmount] = useState("")
+  const [amountTouched, setAmountTouched] = useState(false)
   const [note, setNote] = useState("")
   const [error, setError] = useState("")
+
+  const playerStats = useMemo(
+    () => computePlayerStats(members, sessions, transfers),
+    [members, sessions, transfers]
+  )
+
+  const suggestedAmount = useMemo(() => {
+    if (!fromPlayer || !toPlayer || fromPlayer === toPlayer) return 0
+    const fromBalance = playerStats[fromPlayer]?.totalProfit ?? 0
+    const toBalance = playerStats[toPlayer]?.totalProfit ?? 0
+    return suggestSettlementAmount(fromBalance, toBalance)
+  }, [fromPlayer, toPlayer, playerStats])
+
+  useEffect(() => {
+    if (amountTouched || !suggestedAmount) return
+    setAmount(String(suggestedAmount))
+  }, [suggestedAmount, amountTouched])
 
   const handleOpenChange = (next) => {
     if (next) {
       setFromPlayer("")
       setToPlayer("")
       setAmount("")
+      setAmountTouched(false)
       setNote("")
       setError("")
     }
@@ -103,10 +130,18 @@ export default function AddTransferDialog({ tableId, members = [], open, onOpenC
               min="0"
               step="0.01"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e) => {
+                setAmountTouched(true)
+                setAmount(e.target.value)
+              }}
               placeholder="0.00"
               className="h-11 bg-card"
             />
+            {!amountTouched && suggestedAmount > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Rounded down to the nearest 10 from the outstanding balance — edit to enter the exact amount.
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="transfer-note">Note (optional)</Label>
