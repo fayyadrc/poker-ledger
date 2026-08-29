@@ -841,6 +841,32 @@ class ShareLinkTests(TestCase):
             {"is_authenticated": False, "is_owner": False, "is_member": False},
         )
 
+    def test_shared_table_includes_current_settlements(self):
+        session = Session.objects.create(table=self.table)
+        winner = SessionPlayer.objects.create(session=session, name="Winner", total_buy_in="20.00")
+        loser = SessionPlayer.objects.create(session=session, name="Loser", total_buy_in="20.00")
+        self.owner_client.post(
+            f"/api/sessions/{session.id}/complete/",
+            {
+                "cash_outs": [
+                    {"player_id": winner.id, "cash_out": "30.00"},
+                    {"player_id": loser.id, "cash_out": "10.00"},
+                ],
+            },
+            format="json",
+        )
+
+        token = self._enable_sharing()
+        response = APIClient().get(f"/api/shared/{token}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        sessions_by_id = {s["id"]: s for s in response.json()["sessions"]}
+        settlements = sessions_by_id[session.id]["settlements"]
+        self.assertEqual(len(settlements), 1)
+        self.assertEqual(settlements[0]["from_player"], "Loser")
+        self.assertEqual(settlements[0]["to_player"], "Winner")
+        self.assertEqual(settlements[0]["amount"], "10.00")
+
     def test_shared_owner_name_uses_full_name(self):
         self.owner.first_name = "Grace"
         self.owner.last_name = "Hopper"

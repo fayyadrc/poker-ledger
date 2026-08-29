@@ -6,6 +6,7 @@ from rest_framework.views import APIView
 from . import cache_utils as cache
 from .models import Table, TableMembership
 from .serializers import SessionDetailSerializer, SharedTableSerializer
+from .views import _current_settlements_prefetch
 
 
 def _get_shared_table(token):
@@ -28,7 +29,7 @@ class SharedTableView(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
 
         sessions = (
-            table.sessions.prefetch_related("players", "settlements")
+            table.sessions.prefetch_related("players", _current_settlements_prefetch())
             .select_related("table")
             .order_by("-date", "-created_at")
         )

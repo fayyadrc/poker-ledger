@@ -137,6 +137,7 @@ export default function SharedTablePage() {
               sessions={sessions}
               readOnly
               linkable={false}
+              currency={table.currency}
               emptyMessage="No sessions recorded yet."
             />
           </section>
