@@ -16,18 +16,23 @@ export function computePlayerStats(members, sessions, transfers) {
     return acc
   }, {})
 
-  // A transfer is a real cash settlement, not a new win/loss: paying money out
-  // pays down what you owe (or tops up what you're owed), so it moves your
-  // balance toward zero from below; receiving it moves the recipient's
-  // balance toward zero from above. Net effect across the pair is always 0.
+  // A transfer only has existing debt to "settle" up to what the payer
+  // actually owes and what the recipient is actually owed — that portion
+  // nets both balances toward zero (paying down real debt). Any amount
+  // beyond that isn't backed by a recorded debt, so it's plain cash leaving
+  // the payer's pocket and landing in the recipient's, same as a buy-in /
+  // cash-out: it moves the payer's balance down and the recipient's up.
   for (const transfer of transfers || []) {
     const amount = toAmount(transfer.amount)
-    if (stats[transfer.from_player]) {
-      stats[transfer.from_player].totalProfit += amount
-    }
-    if (stats[transfer.to_player]) {
-      stats[transfer.to_player].totalProfit -= amount
-    }
+    const fromStats = stats[transfer.from_player]
+    const toStats = stats[transfer.to_player]
+    const owedByFrom = fromStats ? Math.max(0, -fromStats.totalProfit) : 0
+    const owedToRecipient = toStats ? Math.max(0, toStats.totalProfit) : 0
+    const settlePortion = Math.min(amount, owedByFrom, owedToRecipient)
+    const excess = amount - settlePortion
+    const netChangeForFrom = settlePortion - excess
+    if (fromStats) fromStats.totalProfit += netChangeForFrom
+    if (toStats) toStats.totalProfit -= netChangeForFrom
   }
 
   return stats
@@ -47,7 +52,7 @@ export function suggestSettlementAmount(fromBalance, toBalance) {
 }
 
 /** Per-player breakdown for table settings (beta / labs). */
-export function computePlayerAnalytics(playerName, sessions, transfers) {
+export function computePlayerAnalytics(playerName, members, sessions, transfers) {
   const history = (sessions || [])
     .filter((session) => session.is_completed)
     .map((session) => {
@@ -87,9 +92,11 @@ export function computePlayerAnalytics(playerName, sessions, transfers) {
     if (transfer.to_player === playerName) transferIn += amount
     if (transfer.from_player === playerName) transferOut += amount
   }
-  // Same settlement semantics as computePlayerStats: paying out moves your
-  // balance toward zero (+), receiving moves it toward zero from above (-).
-  const transferNet = transferOut - transferIn
+  // Delegate the actual profit adjustment to computePlayerStats — it applies
+  // the debt-vs-excess split (see its comment) across every player's
+  // transfers, which this single-player loop above can't do on its own.
+  const totalProfit = computePlayerStats(members || [], sessions, transfers)[playerName]?.totalProfit ?? sessionProfit
+  const transferNet = totalProfit - sessionProfit
 
   return {
     sessionsPlayed,
@@ -106,7 +113,7 @@ export function computePlayerAnalytics(playerName, sessions, transfers) {
     transferIn,
     transferOut,
     transferNet,
-    totalProfit: sessionProfit + transferNet,
+    totalProfit,
     history,
   }
 }

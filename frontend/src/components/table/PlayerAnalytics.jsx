@@ -41,7 +41,7 @@ export default function PlayerAnalytics({ members = [], sessions = [], transfers
   }
 
   const analytics = selected
-    ? computePlayerAnalytics(selected, sessions, transfers)
+    ? computePlayerAnalytics(selected, members, sessions, transfers)
     : null
 
   return (
