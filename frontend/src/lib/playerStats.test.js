@@ -72,10 +72,10 @@ describe("computePlayerAnalytics", () => {
 })
 
 describe("suggestSettlementAmount", () => {
-  it("rounds down to the nearest 10 of the smaller outstanding side", () => {
-    expect(suggestSettlementAmount(-103, 105)).toBe(100) // owes 103, owed 105 -> min 103 -> 100
-    expect(suggestSettlementAmount(-105, 103)).toBe(100) // owes 105, owed 103 -> min 103 -> 100
-    expect(suggestSettlementAmount(-119, 200)).toBe(110)
+  it("suggests the exact smaller outstanding side", () => {
+    expect(suggestSettlementAmount(-103, 105)).toBe(103) // owes 103, owed 105 -> min 103
+    expect(suggestSettlementAmount(-105, 103)).toBe(103) // owes 105, owed 103 -> min 103
+    expect(suggestSettlementAmount(-119, 200)).toBe(119)
   })
 
   it("suggests nothing when the payer isn't in debt or the recipient isn't owed", () => {

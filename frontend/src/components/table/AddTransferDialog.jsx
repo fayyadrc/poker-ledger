@@ -139,7 +139,7 @@ export default function AddTransferDialog({
             />
             {!amountTouched && suggestedAmount > 0 && (
               <p className="text-xs text-muted-foreground">
-                Rounded down to the nearest 10 from the outstanding balance — edit to enter the exact amount.
+                Prefilled from the outstanding balance — edit to enter a different amount.
               </p>
             )}
           </div>

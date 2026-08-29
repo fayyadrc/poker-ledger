@@ -43,8 +43,7 @@ export function computePlayerStats(members, sessions, transfers) {
 export function suggestSettlementAmount(fromBalance, toBalance) {
   const owedByFrom = Math.max(0, -fromBalance)
   const owedToRecipient = Math.max(0, toBalance)
-  const raw = Math.min(owedByFrom, owedToRecipient)
-  return Math.floor(raw / 10) * 10
+  return Math.min(owedByFrom, owedToRecipient)
 }
 
 /** Per-player breakdown for table settings (beta / labs). */
